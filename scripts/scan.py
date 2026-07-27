@@ -7,7 +7,8 @@ high_risk_identifier 扫描器
   - content 组:逐行匹配文件内容,输出 文件路径 + 行号 + 行内容
   - path 组   :匹配文件相对路径,输出只有文件路径(不含内容)
 用法:
-  python3 scan.py <目标目录> [-o 输出.json] [-r rules.yaml] [--min-severity high|medium|low] [-w N]
+  python3 scan.py [目标目录] [-o 输出.json] [-r rules.yaml] [--min-severity high|medium|low] [-w N]
+  不带参数时扫描当前目录,使用脚本同目录的默认规则,结果写入 ./.risk_out/scan_result.json
 """
 import argparse
 import fnmatch
@@ -172,7 +173,7 @@ def scan_batch(jobs):
 
 def main():
     ap = argparse.ArgumentParser(description='按 rules.yaml 扫描目标目录的高风险操作')
-    ap.add_argument('target', help='被扫描的目标目录')
+    ap.add_argument('target', nargs='?', default='.', help='被扫描的目标目录(默认当前目录)')
     ap.add_argument('-o', '--output', default=None,
                     help='结果 JSON 输出路径(默认 <目标目录>/.risk_out/scan_result.json)')
     ap.add_argument('-r', '--rules', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rules.yaml'),
