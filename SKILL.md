@@ -52,8 +52,6 @@ python3 scripts/scan.py <目标目录> -o risk-scan-<名>/scan-base.json --min-s
 | JNDI | lookup 的地址是否可被外部(如日志内容)控制 | 内部固定 JNDI 名 |
 | 硬编码凭据 | 值像真实凭据(长度、复杂度、非占位符) | 占位符(xxx/example/changeme)、测试桩、从变量引用 |
 | 敏感文件访问/入库 | 真的读私钥/凭据文件,或仓库里真有这些文件 | 读的是自己生成的临时密钥 |
-| 网元命令(VRP/MML/NETCONF) | 命令会真正下发到设备(在命令模板/适配层) | 只是日志打印命令名、文档字符串 |
-| SQL 破坏 | 真的会执行 DROP/TRUNCATE(运维脚本、清表接口) | ORM 映射里的表名、注释、单元测试 |
 
 **每条 verdict 三选一:**
 - `confirmed`:上下文确认是真实风险

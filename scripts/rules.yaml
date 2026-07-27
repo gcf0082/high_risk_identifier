@@ -1,5 +1,5 @@
 # =============================================================================
-# 高风险操作识别规则  v3.5
+# 高风险操作识别规则  v3.6
 # -----------------------------------------------------------------------------
 # 每条规则的 match 是一组 (ext, paths, content, path):
 #   - ext    : 后缀名,裸写不带点(如 py、java)。多值。省略 = 所有后缀
@@ -12,7 +12,7 @@
 # 语言特定的关键字只配在该语言后缀的组里。跨语言的(rm -rf、upload)单独成组,列全部源码后缀。
 # =============================================================================
 
-version: "3.5"
+version: "3.6"
 
 # 级别只有三档:high(高) / medium(中) / low(低)。顺序即高低,前者最高。
 # min_severity 控制只输出 >= 该级别的命中;目前只给高的。
@@ -304,50 +304,6 @@ rules:
           - '\bexpect\s+(\S+\.exp|["$\x27(<-])'          # expect 命令(交互自动化,常伴随明文密码)
           - '\bpexpect\b'                                # python 版 expect
           - '\bsshpass\b'                                # 命令行明文 SSH 密码
-
-  - id: HR-DEVICE-DANGEROUS-CMD
-    name: 网元侧高危命令(VRP CLI / MML / NETCONF)
-    severity: high
-    match:
-      - ext: [java, xml, properties, py, js, ts, go, c, cpp, cc, h, hpp, sh, bash, txt, mml]
-        content:
-          # --- VRP(华为数通设备 CLI) ---
-          - '\breboot\b'                                 # 重启设备
-          - 'reset\s+saved-configuration'                # 清空保存的配置
-          - 'clear\s+configuration'                      # 清除配置
-          - 'erase\s+(startup-config|flash|configuration)'
-          - 'format\s+(flash|cfcard|sd[0-9]?|usb)'       # 格式化设备存储
-          - 'delete\s+/unreserved'                       # 彻底删除设备文件
-          # --- MML(无线网管人机语言,MAE/U2000):动词 对象: ---
-          - '\b(RST|RMV|DEA|BLK|MOD|CLR|SWP|DLD|UPG)\s+[A-Z0-9_]+\s*:'   # RST/RMV/DEA/BLK/MOD/CLR/SWP/DLD/UPG XXX:
-          # --- NETCONF ---
-          - 'delete-config'                              # 删除设备配置库
-          - 'discard-changes'
-          - 'kill-session'
-          - 'nc:operation\s*=\s*["\x27](delete|remove)["\x27]'   # YANG 节点删除操作
-
-  - id: MR-DEVICE-CONFIG-CHANGE
-    name: 网元配置变更操作
-    severity: medium
-    match:
-      - ext: [java, xml, properties, py, js, ts, go, c, cpp, cc, h, hpp, sh, bash, txt, mml]
-        content:
-          - 'edit-config'                                # NETCONF 改配置
-          - '\bundo\s+[a-z-]+'                           # VRP 删除配置前缀(undo xxx)
-          - 'startup\s+(system-software|patch|saved-configuration)'   # VRP 指定启动软件/补丁/配置
-          - 'snmpset'                                    # SNMP 写操作
-          - '\b(ACT|UBL)\s+[A-Z0-9_]+\s*:'               # MML 激活/解闭(ACT/UBL XXX:)
-
-  - id: HR-DATABASE-DESTRUCTIVE
-    name: 数据库破坏性 SQL
-    severity: high
-    case_sensitive: false
-    match:
-      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash, sql, xml, properties]
-        content:
-          - 'drop\s+(table|database|schema)\s+\w+'
-          - 'truncate\s+table\s+\w+'
-          - 'grant\s+all\s+privileges'                   # 数据库提权
 
   - id: MR-HARDCODED-SECRET
     name: 疑似硬编码凭据
