@@ -33,6 +33,8 @@ exclude_paths:
   - "**/*.min.js"
   - "**/*.lock"
   - "**/.risk_out/**"      # 扫描器自身的输出目录,避免结果被二次扫描
+  - "**/test/**"           # 测试代码不扫
+  - "**/tests/**"
 
 rules:
 
