@@ -1,5 +1,5 @@
 # =============================================================================
-# 高风险操作识别规则  v3.6
+# 高风险操作识别规则  v3.7
 # -----------------------------------------------------------------------------
 # 每条规则的 match 是一组 (ext, paths, content, path):
 #   - ext    : 后缀名,裸写不带点(如 py、java)。多值。省略 = 所有后缀
@@ -12,7 +12,7 @@
 # 语言特定的关键字只配在该语言后缀的组里。跨语言的(rm -rf、upload)单独成组,列全部源码后缀。
 # =============================================================================
 
-version: "3.6"
+version: "3.7"
 
 # 级别只有三档:high(高) / medium(中) / low(低)。顺序即高低,前者最高。
 # min_severity 控制只输出 >= 该级别的命中;目前只给高的。
@@ -56,8 +56,8 @@ rules:
           - 'rm\s+-[a-zA-Z]*[rR]'                        # rm -r/-R/-rf/-fr 等递归删除
           - 'chmod\s+(-R\s+)?777\b'                      # 全员可写可执行
 
-  - id: HR-COMMAND-INJECTION
-    name: 直接执行字符串命令
+  - id: HR-COMMAND-EXEC
+    name: 命令执行(直接执行字符串命令)
     severity: high
     match:
       - ext: [py]
@@ -129,8 +129,8 @@ rules:
           - 'powershell'
           - '/(usr/)?bin/(ba|da|z|k|c|tc)?sh\b'          # /bin/sh、/usr/bin/bash 等 shell 路径,一般用于执行命令
 
-  - id: HR-JNDI-INJECTION
-    name: JNDI 注入(Log4Shell 类)
+  - id: HR-JNDI-LOOKUP
+    name: JNDI 远程引用(Log4Shell 类)
     severity: high
     match:
       - ext: [java]

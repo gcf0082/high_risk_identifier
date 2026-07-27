@@ -45,8 +45,8 @@ python3 scripts/scan.py <目标目录> -o risk-scan-<名>/scan-base.json --min-s
 
 | 规则族 | 确认真阳性的关键点 | 常见误报 |
 |---|---|---|
-| 命令执行(HR-COMMAND-INJECTION) | 真的在拼/执行命令;参数是否可被外部输入控制 | 只是变量名像、注释、日志文案、从未被调用的死代码 |
-| 脚本引擎/表达式注入 | 引擎 eval 的输入来自外部(报文、配置、REST 入参) | 引擎输入是硬编码常量 |
+| 命令执行(HR-COMMAND-EXEC) | 真的在拼/执行命令;参数是否可被外部输入控制 | 只是变量名像、注释、日志文案、从未被调用的死代码 |
+| 脚本引擎/表达式执行 | 引擎 eval 的输入来自外部(报文、配置、REST 入参) | 引擎输入是硬编码常量 |
 | 文件删除/覆盖 | 删除路径是否可被外部控制、是否无校验递归删 | 删除自己创建的临时目录且路径固定 |
 | 上传/下载/网络 | 真的发生外发/拉取;目标地址是否硬编码内部地址 | 内部微服务间正常调用 |
 | JNDI | lookup 的地址是否可被外部(如日志内容)控制 | 内部固定 JNDI 名 |
@@ -93,7 +93,7 @@ python3 scripts/scan.py <目标目录> -r risk-scan-<名>/rules-custom.yaml -o r
   "summary": {"confirmed": 5, "suspicious": 4, "false_positive": 5},
   "findings": [
     {
-      "rule_id": "HR-COMMAND-INJECTION",
+      "rule_id": "HR-COMMAND-EXEC",
       "rule_name": "...",
       "severity": "high",
       "match_type": "content",
