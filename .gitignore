@@ -1,4 +1,4 @@
 *.swp
 .claude/
-risk-scan-*/
+.risk_out/
 scan_result.json

@@ -173,7 +173,8 @@ def scan_batch(jobs):
 def main():
     ap = argparse.ArgumentParser(description='按 rules.yaml 扫描目标目录的高风险操作')
     ap.add_argument('target', help='被扫描的目标目录')
-    ap.add_argument('-o', '--output', default='scan_result.json', help='结果 JSON 输出路径(默认 scan_result.json)')
+    ap.add_argument('-o', '--output', default=None,
+                    help='结果 JSON 输出路径(默认 <目标目录>/.risk_out/scan_result.json)')
     ap.add_argument('-r', '--rules', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rules.yaml'),
                     help='规则文件路径(默认脚本同目录 rules.yaml)')
     ap.add_argument('--min-severity', default=None, help='覆盖规则文件的 min_severity(high/medium/low)')
@@ -184,6 +185,8 @@ def main():
     if not os.path.isdir(root):
         print(f'错误: 目标目录不存在 {root}', file=sys.stderr)
         sys.exit(1)
+    if args.output is None:
+        args.output = os.path.join(root, '.risk_out', 'scan_result.json')
 
     global CONFIG
     CONFIG = compile_rules(args.rules, args.min_severity)
@@ -227,6 +230,7 @@ def main():
         'summary': summary,
         'findings': findings,
     }
+    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     with open(args.output, 'w', encoding='utf-8') as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 

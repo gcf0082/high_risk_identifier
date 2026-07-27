@@ -32,6 +32,7 @@ exclude_paths:
   - "**/target/**"
   - "**/*.min.js"
   - "**/*.lock"
+  - "**/.risk_out/**"      # 扫描器自身的输出目录,避免结果被二次扫描
 
 rules:
 

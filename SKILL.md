@@ -19,10 +19,10 @@ description: 扫描指定目录,识别疑似高风险操作并输出审计报告
 
 ## 准备工作区
 
-在**当前工作目录**(不要写进被扫描的目标目录,避免污染被审计代码)建工作区:
+所有产出放在**目标目录下的 `.risk_out/`**(扫描器默认输出目录,规则已排除该目录,不会被二次扫描):
 
 ```
-risk-scan-<目标目录名>/
+<目标目录>/.risk_out/
 ├── scan-base.json        # 基线扫描结果
 ├── rules-custom.yaml     # 动态补充规则(第 3 步产出)
 ├── scan-custom.json      # 补充扫描结果
@@ -32,7 +32,8 @@ risk-scan-<目标目录名>/
 ## 第 1 步:基线扫描
 
 ```bash
-python3 scripts/scan.py <目标目录> -o risk-scan-<名>/scan-base.json --min-severity medium -w 8
+python3 scripts/scan.py <目标目录> --min-severity medium -w 8
+# 默认输出 <目标目录>/.risk_out/scan_result.json,改名/移动为 scan-base.json
 ```
 
 默认扫到 medium。medium 量大时可以先只看 high,但 JSON 里要留全量,审核按优先级来。
@@ -74,7 +75,7 @@ python3 scripts/scan.py <目标目录> -o risk-scan-<名>/scan-base.json --min-s
 然后跑第二轮并同样做审核:
 
 ```bash
-python3 scripts/scan.py <目标目录> -r risk-scan-<名>/rules-custom.yaml -o risk-scan-<名>/scan-custom.json --min-severity high -w 8
+python3 scripts/scan.py <目标目录> -r <目标目录>/.risk_out/rules-custom.yaml -o <目标目录>/.risk_out/scan-custom.json --min-severity high -w 8
 ```
 
 如果通读项目后确实没有值得补的特异模式,跳过这步,在报告里说明原因——不要为了补而补。
