@@ -109,25 +109,24 @@ rules:
         content: ['std::process::Command', 'libc::system']
       - ext: [c, cpp, cc, h, hpp]
         content:
-          - '\bsystem\s*\('
-          - 'popen\s*\('
-          - 'exec(l|v)[pel]*\s*\('                       # execl/execlp/execle/execv/execvp/execve...
-          - 'dlopen\s*\('                                # 动态加载共享库
-          - 'CreateProcess[AW]?\s*\('                    # Windows
-          - 'WinExec\s*\('
-          - 'ShellExecute[AW]?\s*\('
+          - '\bsystem\('
+          - 'popen\('
+          - 'exec(l|v)[pel]\('                       # execl/execlp/execle/execv/execvp/execve...
+          - 'dlopen\('                                # 动态加载共享库
+          - 'CreateProcess[AW]?\('                    # Windows
+          - 'WinExec\('
+          - 'ShellExecute[AW]?\('
       - ext: [php]
         content:
-          - '\b(system|exec|shell_exec|passthru|popen|proc_open)\s*\('
-          - 'eval\s*\('
-          - 'create_function\s*\('                       # 已废弃的隐式 eval
+          - '\b(system|exec|shell_exec|passthru|popen|proc_open)\('
+          - 'eval\('
+          - 'create_function\('                       # 已废弃的隐式 eval
       - ext: [js, ts, go, java, rs, c, cpp, cc, h, hpp, ]   # 跨语言:shell 解释器调用串
         content:
           - '/bin/'
           - 'bash'
           - 'cmd\.exe'                            # cmd /c、cmd /k
           - 'powershell'
-          - '/(usr/)?bin/(ba|da|z|k|c|tc)?sh\b'          # /bin/sh、/usr/bin/bash 等 shell 路径,一般用于执行命令
 
   - id: HR-JNDI-LOOKUP
     name: JNDI 远程引用(Log4Shell 类)
@@ -173,7 +172,7 @@ rules:
           - 'unrar\b'
           - '\b7z\b'                                     # 7z a/x/e 等任意子命令
           - '\btar\b'                                    # tar -xf/-cf/-czf 等任意带参调用
-          - 'extractall\s*\('                            # python zipfile/tarfile
+          - 'extractall\('                            # python zipfile/tarfile
           - '\btarfile\b|ZipFile|ZipInputStream|ZipArchive'
 
   - id: MR-FILE-DOWNLOAD
@@ -301,7 +300,7 @@ rules:
           - '\bsudo\b'                                   # 提权执行
           - '\bsu\b'                                     # 切换用户
           - '\bdoas\b'                                   # sudo 替代品
-          - '\bexpect\s+(\S+\.exp|["$\x27(<-])'          # expect 命令(交互自动化,常伴随明文密码)
+          - '\bexpect\s+'          # expect 命令(交互自动化,常伴随明文密码)
           - '\bpexpect\b'                                # python 版 expect
           - '\bsshpass\b'                                # 命令行明文 SSH 密码
 
