@@ -6,7 +6,7 @@ description: 对给定目录做疑似高风险点识别与审计。先跑规则�
 # 高风险点识别与审计
 
 对目标目录做四轮工作:**扫描 → 审核确认 → 动态补规则二扫 → 整合**。
-扫描脚本和基础规则在项目根目录(本 skill 向上三级):`scan.py`、`rules.yaml`。
+扫描脚本和基础规则在本目录的 `scripts/` 下:`scripts/scan.py`、`scripts/rules.yaml`。
 
 ## 总流程
 
@@ -32,7 +32,7 @@ risk-scan-<目标目录名>/
 ## 第 1 步:基线扫描
 
 ```bash
-python3 <项目根>/scan.py <目标目录> -o risk-scan-<名>/scan-base.json --min-severity medium -w 8
+python3 scripts/scan.py <目标目录> -o risk-scan-<名>/scan-base.json --min-severity medium -w 8
 ```
 
 默认扫到 medium。medium 量大时可以先只看 high,但 JSON 里要留全量,审核按优先级来。
@@ -76,7 +76,7 @@ python3 <项目根>/scan.py <目标目录> -o risk-scan-<名>/scan-base.json --m
 然后跑第二轮并同样做审核:
 
 ```bash
-python3 <项目根>/scan.py <目标目录> -r risk-scan-<名>/rules-custom.yaml -o risk-scan-<名>/scan-custom.json --min-severity high -w 8
+python3 scripts/scan.py <目标目录> -r risk-scan-<名>/rules-custom.yaml -o risk-scan-<名>/scan-custom.json --min-severity high -w 8
 ```
 
 如果通读项目后确实没有值得补的特异模式,跳过这步,在报告里说明原因——不要为了补而补。
