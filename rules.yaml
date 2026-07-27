@@ -1,0 +1,359 @@
+# =============================================================================
+# 高风险操作识别规则  v3.5
+# -----------------------------------------------------------------------------
+# 每条规则的 match 是一组 (ext, paths, content, path):
+#   - ext    : 后缀名,裸写不带点(如 py、java)。多值。省略 = 所有后缀
+#   - paths  : 可选,路径 glob 过滤条件(省略 = 任意位置)。一般不用,需要时才写
+#   - content: 内容正则,多值,OR。搜文件内容
+#   - path   : 路径正则,多值,OR。搜文件相对路径本身。与 content 二选一
+#   content 组:后缀 ∈ ext AND (paths 为空或命中) AND 内容命中 content -> 报一条(含内容)
+#   path 组   :(ext/paths 过滤通过) AND 相对路径命中 path -> 报一条,输出只有文件路径,不含内容
+#   多组之间 OR。exclude_paths 全局生效,对 content/path 组都适用。
+# 语言特定的关键字只配在该语言后缀的组里。跨语言的(rm -rf、upload)单独成组,列全部源码后缀。
+# =============================================================================
+
+version: "3.5"
+
+# 级别只有三档:high(高) / medium(中) / low(低)。顺序即高低,前者最高。
+# min_severity 控制只输出 >= 该级别的命中;目前只给高的。
+severity_levels: [high, medium, low]
+min_severity: high
+
+# 内容匹配是否区分大小写:默认区分(true)。单条规则可写 case_sensitive 覆盖全局。
+case_sensitive: true
+
+# 全局排除路径(所有规则共享)
+exclude_paths:
+  - "**/node_modules/**"
+  - "**/.git/**"
+  - "**/vendor/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/target/**"
+  - "**/*.min.js"
+  - "**/*.lock"
+
+rules:
+
+  - id: HR-DESTRUCTIVE-FILE-OPS
+    name: 危险文件删除/覆盖
+    severity: high
+    match:
+      - ext: [py]
+        content: ['shutil\.rmtree', 'os\.remove', 'os\.unlink', 'os\.rmdir', 'os\.removedirs', '\.unlink\s*\(']
+      - ext: [js, ts]
+        content: ['fs\.rmSync', 'fs\.unlinkSync', 'fs\.rm\b\s*\(', 'fs\.rmdirSync', 'rimraf']
+      - ext: [java]
+        content: ['Files\.delete', 'Files\.deleteIfExists', 'FileUtils\.delete']
+      - ext: [go]
+        content: ['os\.RemoveAll', 'os\.Remove']
+      - ext: [rs]
+        content: ['std::fs::remove_dir_all', 'std::fs::remove_file', 'std::fs::remove_dir']
+      - ext: [c, cpp, cc, h, hpp]
+        content: ['\bremove\s*\(', '\bunlink\s*\(', '\brmdir\s*\(']
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]   # 跨语言:作为字符串/命令出现
+        content:
+          - 'rm\s+-[a-zA-Z]*[rR]'                        # rm -r/-R/-rf/-fr 等递归删除
+          - 'chmod\s+(-R\s+)?777\b'                      # 全员可写可执行
+
+  - id: HR-COMMAND-INJECTION
+    name: 直接执行字符串命令
+    severity: high
+    match:
+      - ext: [py]
+        content:
+          - 'os\.system\s*\('
+          - 'os\.popen\s*\('
+          - 'os\.exec[lv]'                               # os.execv/execl/execvp... 进程替换
+          - 'subprocess\.(call|run|Popen|check_output|check_call|getoutput)'
+          - 'shell\s*=\s*True'
+          - 'eval\s*\('
+          - 'exec\s*\('
+          - '__import__\s*\('                            # 动态导入执行
+      - ext: [js, ts]
+        content:
+          - 'child_process\.(exec|execSync|execFile|execFileSync|spawn|spawnSync|fork)'
+          - '["\x27](node:)?child_process["\x27]'        # 引用 child_process 模块(含解构)
+          - 'new\s+Function\s*\('
+          - 'eval\s*\('
+          - 'vm\.runIn'                                  # vm.runInThisContext/runInNewContext
+          - 'set(Timeout|Interval)\s*\(\s*["\x27]'       # 字符串参数 = 隐式 eval
+      - ext: [java]
+        content:
+          # --- 进程/命令执行 ---
+          - 'Runtime\.getRuntime\(\)\.exec'
+          - 'Runtime\.getRuntime\(\)\.load'              # load/loadLibrary 加载本地库
+          - '\bRuntime\s+\w+\s*=.*\.exec\s*\('
+          - 'ProcessBuilder'
+          - 'ProcessImpl'
+          - 'System\.load(ibrary)?\s*\('                 # JNI 加载本地动态库
+          # --- 脚本引擎 / 表达式求值(JSR-223、Groovy、SpEL、OGNL、MVEL、BeanShell、Jython、JShell) ---
+          - 'ScriptEngine(Manager)?\b'
+          - 'javax\.script'
+          - 'Groovy(Shell|ClassLoader|ScriptEngine)\b'
+          - 'groovy\.util\.Eval'
+          - 'bsh\.Interpreter'
+          - 'PythonInterpreter'                          # Jython
+          - 'JShell\b|jdk\.jshell'
+          - 'SpelExpressionParser|StandardEvaluationContext'
+          - '\bOgnl\b|ognl\.Ognl'
+          - '\bMVEL\b'
+          # --- 运行时编译 ---
+          - 'ToolProvider\.getSystemJavaCompiler'
+          - 'javax\.tools\.JavaCompiler'
+          # --- 动态类加载(业务中的插件机制也会用到) ---
+          - 'defineClass\s*\('
+          - 'URLClassLoader'
+      - ext: [go]
+        content: ['exec\.Command', 'syscall\.Exec', 'plugin\.Open']
+      - ext: [rs]
+        content: ['std::process::Command', 'libc::system']
+      - ext: [c, cpp, cc, h, hpp]
+        content:
+          - '\bsystem\s*\('
+          - 'popen\s*\('
+          - 'exec(l|v)[pel]*\s*\('                       # execl/execlp/execle/execv/execvp/execve...
+          - 'dlopen\s*\('                                # 动态加载共享库
+          - 'CreateProcess[AW]?\s*\('                    # Windows
+          - 'WinExec\s*\('
+          - 'ShellExecute[AW]?\s*\('
+      - ext: [php]
+        content:
+          - '\b(system|exec|shell_exec|passthru|popen|proc_open)\s*\('
+          - 'eval\s*\('
+          - 'create_function\s*\('                       # 已废弃的隐式 eval
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]   # 跨语言:shell 解释器调用串
+        content:
+          - '/bin/(ba)?sh\s+-c'
+          - 'cmd(\.exe)?\s+/'                            # cmd /c、cmd /k
+          - 'powershell'
+          - '/(usr/)?bin/(ba|da|z|k|c|tc)?sh\b'          # /bin/sh、/usr/bin/bash 等 shell 路径,一般用于执行命令
+
+  - id: HR-JNDI-INJECTION
+    name: JNDI 注入(Log4Shell 类)
+    severity: high
+    match:
+      - ext: [java]
+        content:
+          - 'Initial(Dir|Ldap)?Context'
+          - 'javax\.naming'
+          - 'JndiTemplate'
+          - 'jndi:(ldap|rmi|dns|iiop|rms|nis)'           # 带协议的 JNDI URL
+          - 'com\.sun\.jndi'
+      - ext: [java, properties, xml, yml, yaml, log, txt]      # 日志/配置中的 JNDI 载荷
+        content: ['\$\{jndi:']
+
+  - id: HR-SENSITIVE-FILE-ACCESS
+    name: 访问敏感文件
+    severity: medium
+    case_sensitive: false      # 覆盖全局:路径串可能写 .ENV/.NPMRC,忽略大小写
+    match:
+      - content: ['\.ssh/id_rsa', '\.env\b', '\.aws/credentials', '\.npmrc\b', '\.git-credentials', '/etc/shadow', '/etc/passwd', '\.kube/config', '\.docker/config\.json', '\.netrc\b', '\.pgpass']   # 不限后缀,扫所有文件
+
+  - id: HR-EXTERNAL-UPLOAD
+    name: 向外部上传/外发数据
+    severity: high
+    match:
+      - ext: [py]
+        content: ['requests\.post', 'httpx\.post']
+      - ext: [js, ts]
+        content: ['axios\.post', 'fetch\s*\(\s*["\x27]https?://']
+      - ext: [go]
+        content: ['http\.Post']
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]   # 跨语言:upload 关键字(路径/接口/变量名)
+        content: ['\bupload\b']
+
+  - id: HR-ARCHIVE-EXTRACT
+    name: 解压压缩包(常伴随下载-解压-执行链)
+    severity: high
+    match:
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]
+        content:
+          - 'unzip\b'
+          - 'unrar\b'
+          - '\b7z\s'                                     # 7z a/x/e 等任意子命令
+          - 'tar\s+-'                                    # tar -xf/-cf/-czf 等任意带参调用
+          - 'extractall\s*\('                            # python zipfile/tarfile
+          - '\btarfile\b|ZipFile|ZipInputStream|ZipArchive'
+
+  - id: MR-FILE-DOWNLOAD
+    name: 下载外部文件
+    severity: medium
+    match:
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]
+        content:
+          - '\bdownload\b'
+          - 'wget\s'
+          - 'curl\s'                                     # 任意 curl 调用(-O/-o/-d 等)
+          - 'urlretrieve'
+          - 'Invoke-WebRequest|Invoke-RestMethod'
+
+  - id: MR-ARCHIVE-FILE
+    name: 仓库中提交压缩包文件(.zip/.tar.gz 等)
+    severity: medium
+    case_sensitive: false
+    match:
+      - path: ['\.zip$', '\.tar\.gz$', '\.tgz$', '\.tar$', '\.rar$', '\.7z$']   # 路径匹配:输出只有文件路径
+
+  - id: HR-PATH-UPLOAD
+    name: 路径含 upload(上传相关代码)
+    severity: high
+    case_sensitive: false
+    match:
+      - path: ['upload']
+
+  - id: MR-PATH-DOWNLOAD
+    name: 路径含 download(下载相关代码)
+    severity: medium
+    case_sensitive: false
+    match:
+      - path: ['download']
+
+  - id: HR-SENSITIVE-FILES-PATH
+    name: 敏感文件入库(私钥/证书/凭据文件)
+    severity: high
+    case_sensitive: false
+    match:
+      - path:
+          - '(^|/)(\.env|\.npmrc|\.netrc|\.pgpass|\.git-credentials|id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.|$)'
+          - '\.(pem|key|p12|pfx|jks|keystore)$'
+          - '\.kube/config$|\.docker/config\.json$|\.aws/credentials$'
+
+  - id: MR-DUMP-FILE
+    name: 数据库转储/备份文件入库
+    severity: medium
+    case_sensitive: false
+    match:
+      - path: ['\.(sql|bak|dump|dmp)$']
+
+  - id: HR-PERSISTENCE
+    name: 持久化(计划任务、自启动服务)
+    severity: high
+    match:
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]
+        content:
+          - 'crontab\b|/etc/cron'                        # 计划任务
+          - '/etc/systemd/system|systemctl\s+enable'     # systemd 服务自启
+          - '/etc/rc\.local|chkconfig'
+          - 'schtasks\s'                                 # Windows 计划任务
+
+  - id: MR-FILE-WRITE
+    name: 文件写入/覆盖
+    severity: medium
+    match:
+      - ext: [py]
+        content: ['open\s*\([^)]*["\x27][wa]\+?["\x27]', 'shutil\.copy']
+      - ext: [js, ts]
+        content: ['fs\.writeFile', 'fs\.appendFile', 'createWriteStream']
+      - ext: [java]
+        content: ['FileOutputStream', 'FileWriter', 'Files\.write', 'RandomAccessFile']
+      - ext: [go]
+        content: ['os\.Create', 'os\.WriteFile', 'ioutil\.WriteFile']
+      - ext: [rs]
+        content: ['fs::write', 'File::create']
+      - ext: [c, cpp, cc, h, hpp]
+        content: ['fopen\s*\([^)]*["\x27][wa]\+?["\x27]']
+      - ext: [php]
+        content: ['file_put_contents', 'fwrite']
+
+  - id: MR-FILE-PERMISSION
+    name: 修改文件权限/属主
+    severity: medium
+    match:
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]
+        content:
+          - 'chmod\s'
+          - 'chown\s'
+          - 'os\.chmod|os\.chown'
+          - 'fs\.chmod'
+          - 'setExecutable|setWritable|setPosixFilePermissions'
+
+  - id: MR-NETWORK-ACTIVITY
+    name: 网络连接/监听
+    severity: medium
+    match:
+      - ext: [py]
+        content: ['socket\.socket', 'requests\.(get|put|delete|head)', 'urlopen']
+      - ext: [js, ts]
+        content: ['net\.connect|net\.createConnection|createServer', 'new\s+WebSocket', 'axios\.get', 'dgram\.createSocket']
+      - ext: [java]
+        content: ['new\s+Socket', 'ServerSocket', 'HttpURLConnection', 'OkHttpClient', 'RestTemplate', 'HttpClient']
+      - ext: [go]
+        content: ['net\.Dial', 'net\.Listen', 'http\.Get', 'http\.NewRequest']
+      - ext: [rs]
+        content: ['TcpStream::connect', 'TcpListener::bind', 'reqwest::']
+      - ext: [c, cpp, cc, h, hpp]
+        content: ['\bsocket\s*\(', '\blisten\s*\(', '\baccept\s*\(', 'curl_easy_perform']
+      - ext: [php]
+        content: ['fsockopen', 'curl_exec', 'file_get_contents\s*\(\s*["\x27]https?://']
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]   # 跨语言:远程操作命令
+        content: ['\b(ssh|scp|sftp|telnet|ftp|tftp)\b']
+
+  - id: MR-SENSITIVE-COMMANDS
+    name: 敏感系统命令(密钥/证书/提权/交互自动化)
+    severity: medium
+    match:
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]
+        content:
+          - '\bopenssl\s'                                # 密钥/证书/加解密
+          - '\bkeytool\s'                                # Java keystore 操作
+          - '\bgpg\s'                                    # GPG 加解密/签名
+          - '\bsudo\b'                                   # 提权执行
+          - '\bsu\s'                                     # 切换用户
+          - '\bdoas\b'                                   # sudo 替代品
+          - '\bexpect\s+(\S+\.exp|["$\x27(<-])'          # expect 命令(交互自动化,常伴随明文密码)
+          - '\bpexpect\b'                                # python 版 expect
+          - '\bsshpass\b'                                # 命令行明文 SSH 密码
+
+  - id: HR-DEVICE-DANGEROUS-CMD
+    name: 网元侧高危命令(VRP CLI / MML / NETCONF)
+    severity: high
+    match:
+      - ext: [java, xml, properties, py, js, ts, go, c, cpp, cc, h, hpp, sh, bash, txt, mml]
+        content:
+          # --- VRP(华为数通设备 CLI) ---
+          - '\breboot\b'                                 # 重启设备
+          - 'reset\s+saved-configuration'                # 清空保存的配置
+          - 'clear\s+configuration'                      # 清除配置
+          - 'erase\s+(startup-config|flash|configuration)'
+          - 'format\s+(flash|cfcard|sd[0-9]?|usb)'       # 格式化设备存储
+          - 'delete\s+/unreserved'                       # 彻底删除设备文件
+          # --- MML(无线网管人机语言,MAE/U2000):动词 对象: ---
+          - '\b(RST|RMV|DEA|BLK|MOD|CLR|SWP|DLD|UPG)\s+[A-Z0-9_]+\s*:'   # RST/RMV/DEA/BLK/MOD/CLR/SWP/DLD/UPG XXX:
+          # --- NETCONF ---
+          - 'delete-config'                              # 删除设备配置库
+          - 'discard-changes'
+          - 'kill-session'
+          - 'nc:operation\s*=\s*["\x27](delete|remove)["\x27]'   # YANG 节点删除操作
+
+  - id: MR-DEVICE-CONFIG-CHANGE
+    name: 网元配置变更操作
+    severity: medium
+    match:
+      - ext: [java, xml, properties, py, js, ts, go, c, cpp, cc, h, hpp, sh, bash, txt, mml]
+        content:
+          - 'edit-config'                                # NETCONF 改配置
+          - '\bundo\s+[a-z-]+'                           # VRP 删除配置前缀(undo xxx)
+          - 'startup\s+(system-software|patch|saved-configuration)'   # VRP 指定启动软件/补丁/配置
+          - 'snmpset'                                    # SNMP 写操作
+          - '\b(ACT|UBL)\s+[A-Z0-9_]+\s*:'               # MML 激活/解闭(ACT/UBL XXX:)
+
+  - id: HR-DATABASE-DESTRUCTIVE
+    name: 数据库破坏性 SQL
+    severity: high
+    case_sensitive: false
+    match:
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash, sql, xml, properties]
+        content:
+          - 'drop\s+(table|database|schema)\s+\w+'
+          - 'truncate\s+table\s+\w+'
+          - 'grant\s+all\s+privileges'                   # 数据库提权
+
+  - id: MR-HARDCODED-SECRET
+    name: 疑似硬编码凭据
+    severity: medium
+    case_sensitive: false
+    match:
+      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash, xml, properties, yml, yaml]
+        content:
+          - '(password|passwd|pwd|secret|secret_?key|access_?key|token|api_?key)\s*[:=]\s*(["\x27][^"\x27]{3,}["\x27]|[^"\x27\s(;][^"\x27;(]{2,}\s*$)'
