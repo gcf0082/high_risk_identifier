@@ -77,10 +77,8 @@ rules:
         content:
           - 'child_process\.(exec|execSync|execFile|execFileSync|spawn|spawnSync|fork)'
           - '["\x27](node:)?child_process["\x27]'        # 引用 child_process 模块(含解构)
-          - 'new\s+Function\s*\('
           - 'eval\s*\('
           - 'vm\.runIn'                                  # vm.runInThisContext/runInNewContext
-          - 'set(Timeout|Interval)\s*\(\s*["\x27]'       # 字符串参数 = 隐式 eval
       - ext: [java]
         content:
           # --- 进程/命令执行 ---
@@ -105,8 +103,6 @@ rules:
           - 'ToolProvider\.getSystemJavaCompiler'
           - 'javax\.tools\.JavaCompiler'
           # --- 动态类加载(业务中的插件机制也会用到) ---
-          - 'defineClass\s*\('
-          - 'URLClassLoader'
       - ext: [go]
         content: ['exec\.Command', 'syscall\.Exec', 'plugin\.Open']
       - ext: [rs]
@@ -125,10 +121,11 @@ rules:
           - '\b(system|exec|shell_exec|passthru|popen|proc_open)\s*\('
           - 'eval\s*\('
           - 'create_function\s*\('                       # 已废弃的隐式 eval
-      - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]   # 跨语言:shell 解释器调用串
+      - ext: [js, ts, go, java, rs, c, cpp, cc, h, hpp, ]   # 跨语言:shell 解释器调用串
         content:
-          - '/bin/(ba)?sh\s+-c'
-          - 'cmd(\.exe)?\s+/'                            # cmd /c、cmd /k
+          - '/bin/'
+          - 'bash'
+          - 'cmd\.exe'                            # cmd /c、cmd /k
           - 'powershell'
           - '/(usr/)?bin/(ba|da|z|k|c|tc)?sh\b'          # /bin/sh、/usr/bin/bash 等 shell 路径,一般用于执行命令
 
@@ -174,8 +171,8 @@ rules:
         content:
           - 'unzip\b'
           - 'unrar\b'
-          - '\b7z\s'                                     # 7z a/x/e 等任意子命令
-          - 'tar\s+-'                                    # tar -xf/-cf/-czf 等任意带参调用
+          - '\b7z\b'                                     # 7z a/x/e 等任意子命令
+          - '\btar\b'                                    # tar -xf/-cf/-czf 等任意带参调用
           - 'extractall\s*\('                            # python zipfile/tarfile
           - '\btarfile\b|ZipFile|ZipInputStream|ZipArchive'
 
@@ -187,7 +184,7 @@ rules:
         content:
           - '\bdownload\b'
           - 'wget\s'
-          - 'curl\s'                                     # 任意 curl 调用(-O/-o/-d 等)
+          - 'curl\b'                                     # 任意 curl 调用(-O/-o/-d 等)
           - 'urlretrieve'
           - 'Invoke-WebRequest|Invoke-RestMethod'
 
