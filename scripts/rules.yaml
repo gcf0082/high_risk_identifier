@@ -183,7 +183,7 @@ rules:
       - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]
         content:
           - '\bdownload\b'
-          - 'wget\s'
+          - '\bwget\b'
           - 'curl\b'                                     # 任意 curl 调用(-O/-o/-d 等)
           - 'urlretrieve'
           - 'Invoke-WebRequest|Invoke-RestMethod'
@@ -235,7 +235,7 @@ rules:
           - 'crontab\b|/etc/cron'                        # 计划任务
           - '/etc/systemd/system|systemctl\s+enable'     # systemd 服务自启
           - '/etc/rc\.local|chkconfig'
-          - 'schtasks\s'                                 # Windows 计划任务
+          - '\bschtasks\b'                                 # Windows 计划任务
 
   - id: MR-FILE-WRITE
     name: 文件写入/覆盖
@@ -262,8 +262,8 @@ rules:
     match:
       - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]
         content:
-          - 'chmod\s'
-          - 'chown\s'
+          - '\bchmod\b'
+          - '\bchown\b'
           - 'os\.chmod|os\.chown'
           - 'fs\.chmod'
           - 'setExecutable|setWritable|setPosixFilePermissions'
@@ -295,11 +295,11 @@ rules:
     match:
       - ext: [py, js, ts, go, java, rs, c, cpp, cc, h, hpp, php, sh, bash]
         content:
-          - '\bopenssl\s'                                # 密钥/证书/加解密
-          - '\bkeytool\s'                                # Java keystore 操作
-          - '\bgpg\s'                                    # GPG 加解密/签名
+          - '\bopenssl\b'                                # 密钥/证书/加解密
+          - '\bkeytool\b'                                # Java keystore 操作
+          - '\bgpg\b'                                    # GPG 加解密/签名
           - '\bsudo\b'                                   # 提权执行
-          - '\bsu\s'                                     # 切换用户
+          - '\bsu\b'                                     # 切换用户
           - '\bdoas\b'                                   # sudo 替代品
           - '\bexpect\s+(\S+\.exp|["$\x27(<-])'          # expect 命令(交互自动化,常伴随明文密码)
           - '\bpexpect\b'                                # python 版 expect
