@@ -4,11 +4,10 @@
 high_risk_identifier 扫描器
 
 按 rules.yaml 定义的规则扫描目标目录:
-  - content 组:逐行匹配文件内容,输出 文件路径 + 行号 + 列号 + 行内容(可选前后上下文)
+  - content 组:逐行匹配文件内容,输出 文件路径 + 行号 + 行内容
   - path 组   :匹配文件相对路径,输出只有文件路径(不含内容)
 用法:
-  python3 scan.py [目标目录] [-o 输出.json] [-r rules.yaml] [--min-severity high|medium|low]
-                  [-e py,java] [-p "**/src/**"] [-x "**/test/**"] [-C N] [-w N]
+  python3 scan.py [目标目录] [-o 输出.json] [-r rules.yaml] [--min-severity high|medium|low] [-w N]
   不带参数时扫描当前目录,使用脚本同目录的默认规则,结果写入 ./.risk_out/scan_result.json
 """
 import argparse
@@ -49,14 +48,10 @@ def compile_rules(rules_path, min_severity_override=None):
         flags = 0 if rule.get('case_sensitive', global_cs) else re.IGNORECASE
         groups = []
         for m in rule.get('match', []):
-            content_pats = m.get('content', [])
             groups.append({
                 'exts': {e.lower() for e in m['ext']} if m.get('ext') else None,
                 'paths': m.get('paths'),
-                'content': [re.compile(p, flags) for p in content_pats],
-                # 合并正则:逐行扫描时先做一次 search 预筛,命中后才逐条跑单正则
-                'content_re': (re.compile('|'.join(f'(?:{p})' for p in content_pats), flags)
-                               if content_pats else None),
+                'content': [re.compile(p, flags) for p in m.get('content', [])],
                 'path': [re.compile(p, flags) for p in m.get('path', [])],
             })
         compiled_rules.append({
@@ -65,28 +60,11 @@ def compile_rules(rules_path, min_severity_override=None):
             'severity': sev,
             'groups': groups,
         })
-
-    # 按后缀索引 content 组:扫描时按文件后缀直接取候选组,避免每个文件遍历全部规则
-    content_by_ext = {}
-    content_any = []      # 不限后缀的 content 组,对所有文件生效
-    for rule in compiled_rules:
-        for g in rule['groups']:
-            if not g['content']:
-                continue
-            if g['exts'] is None:
-                content_any.append((rule, g))
-            else:
-                for e in g['exts']:
-                    content_by_ext.setdefault(e, []).append((rule, g))
-
     return {
         'version': cfg.get('version'),
         'min_severity': min_sev,
         'exclude': cfg.get('exclude_paths', []),
         'rules': compiled_rules,
-        'content_by_ext': content_by_ext,
-        'content_any': content_any,
-        'context_lines': 0,     # 由 main 按 -C 参数覆盖
     }
 
 
@@ -110,14 +88,16 @@ def excluded(rel):
                for pat in CONFIG['exclude'])
 
 
-def build_rule_exts():
-    """从已编译规则中提取所有 exts(用于与 -e 指定的后缀取交集)"""
-    all_exts = set()
+def build_filter_from_rules():
+    """从已编译规则中提取所有 exts 和 paths，构建预过滤集合（用于快速过滤文件）"""
+    all_exts, all_paths = set(), []
     for rule in CONFIG['rules']:
         for g in rule['groups']:
             if g['exts'] is not None:
                 all_exts.update(g['exts'])
-    return all_exts
+            if g['paths']:
+                all_paths.extend(g['paths'])
+    return all_exts, all_paths
 
 
 def file_in_filter(rel, user_exts, user_paths):
@@ -162,14 +142,17 @@ def scan_file(job):
 
     # --- path 组:只匹配相对路径,输出不含内容 ---
     path_hits = {}      # rule_id -> {'rule': rule, 'patterns': set()}
+    content_groups = []  # [(rule, group)]
     for rule in CONFIG['rules']:
         for g in rule['groups']:
-            if not g['path'] or not group_applies(rel, g):
+            if not group_applies(rel, g):
                 continue
             for p in g['path']:
                 if p.search(rel):
                     hit = path_hits.setdefault(rule['id'], {'rule': rule, 'patterns': set()})
                     hit['patterns'].add(p.pattern)
+            if g['content']:
+                content_groups.append((rule, g))
 
     for rid, info in path_hits.items():
         r = info['rule']
@@ -181,14 +164,6 @@ def scan_file(job):
             'file': rel,
             'matches': [{'pattern': p} for p in sorted(info['patterns'])],
         })
-
-    # --- content 组:按后缀取候选组,再按 paths 过滤 ---
-    ext = ext_of(rel)
-    content_groups = [
-        (rule, g)
-        for rule, g in (CONFIG['content_by_ext'].get(ext, []) + CONFIG['content_any'])
-        if not g['paths'] or any(fnmatch.fnmatch(rel, p) for p in g['paths'])
-    ]
 
     # --- content 组:逐行匹配内容 ---
     if content_groups:
@@ -209,33 +184,21 @@ def scan_file(job):
             lines = lines[1:]
             line_offset = 2
 
-        acc = {}   # rule_id -> {'rule': rule, 'matches': {(pattern, lineno): (text, column)}}
+        acc = {}   # rule_id -> {'rule': rule, 'matches': {(pattern, lineno): text}}
         for lineno, line in enumerate(lines, line_offset):
             for rule, g in content_groups:
-                if not g['content_re'].search(line):    # 合并正则预筛
-                    continue
                 for p in g['content']:
                     m = p.search(line)
                     if m:
                         entry = acc.setdefault(rule['id'], {'rule': rule, 'matches': {}})
-                        entry['matches'].setdefault((p.pattern, lineno),
-                                                    (line.strip()[:LINE_PREVIEW], m.start() + 1))
+                        entry['matches'].setdefault((p.pattern, lineno), line.strip()[:LINE_PREVIEW])
 
-        ctx_n = CONFIG.get('context_lines', 0)
         for rid, info in acc.items():
             r = info['rule']
-            matches = []
-            ordered = sorted(info['matches'].items(), key=lambda x: x[0][1])[:MAX_MATCHES_PER_FINDING]
-            for (pat, lineno), (txt, col) in ordered:
-                hit = {'line': lineno, 'column': col, 'pattern': pat, 'text': txt}
-                if ctx_n > 0:
-                    lo = max(line_offset, lineno - ctx_n)
-                    hi = min(line_offset + len(lines) - 1, lineno + ctx_n)
-                    hit['context'] = [
-                        {'line': i, 'text': lines[i - line_offset].strip()[:LINE_PREVIEW]}
-                        for i in range(lo, hi + 1)
-                    ]
-                matches.append(hit)
+            matches = [
+                {'line': lineno, 'pattern': pat, 'text': txt}
+                for (pat, lineno), txt in sorted(info['matches'].items(), key=lambda x: x[0][1])
+            ][:MAX_MATCHES_PER_FINDING]
             findings.append({
                 'rule_id': rid,
                 'rule_name': r['name'],
@@ -262,17 +225,13 @@ def main():
                     help='结果 JSON 输出路径(默认 <目标目录>/.risk_out/scan_result.json)')
     ap.add_argument('-r', '--rules', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rules.yaml'),
                     help='规则文件路径(默认脚本同目录 rules.yaml)')
-    ap.add_argument('--min-severity', default=None,
-                    help='覆盖规则文件的 min_severity(high/medium/low);'
-                         '当前 rules.yaml v4.0 仅含 high 规则,设为 medium/low 不会启用更多规则')
+    ap.add_argument('--min-severity', default=None, help='覆盖规则文件的 min_severity(high/medium/low)')
     ap.add_argument('-e', '--ext', default=None,
                     help='只扫描指定后缀的文件(逗号分隔,如 py,java,js),与规则取交集')
     ap.add_argument('-p', '--path', default=None,
-                    help='只扫描路径匹配指定 glob 的文件(逗号分隔,如 **/src/**,**/core/**)')
+                    help='只扫描路径匹配指定 glob 的文件(逗号分隔,如 **/src/**,**/core/**),与规则取交集')
     ap.add_argument('-x', '--exclude', default=None,
                     help='排除指定路径(glob,逗号分隔),可与规则中的 exclude_paths 叠加')
-    ap.add_argument('-C', '--context', type=int, default=0,
-                    help='每条命中附带前后 N 行上下文(默认 0,不附带)')
     ap.add_argument('-w', '--workers', type=int, default=cpu_count(), help='并行进程数(默认 CPU 核数)')
     args = ap.parse_args()
 
@@ -285,30 +244,25 @@ def main():
 
     global CONFIG
     CONFIG = compile_rules(args.rules, args.min_severity)
-    CONFIG['context_lines'] = max(0, args.context)
 
-    # 从规则中提取所有 exts,用于与 -e 指定的后缀取交集
-    rule_exts = build_rule_exts()
+    # 从规则中提取所有 exts 和 paths，用于与用户指定值取交集
+    rule_exts, rule_paths = build_filter_from_rules()
 
-    # 解析用户指定的 ext 过滤,与规则后缀取交集
+    # 解析用户指定的 ext 和 path 过滤，再与规则取交集
     user_exts = None
     if args.ext:
         user_spec = {e.strip().lstrip('.').lower() for e in args.ext.split(',') if e.strip()}
         if rule_exts:
-            dropped = user_spec - rule_exts
-            if dropped:
-                print(f'警告: -e 指定的后缀不在规则范围内,已丢弃: {",".join(sorted(dropped))}',
-                      file=sys.stderr)
             user_exts = user_spec & rule_exts   # 交集:只保留规则中有的后缀
-            if not user_exts:
-                print(f'警告: -e 与规则后缀交集为空(指定: {",".join(sorted(user_spec))}),'
-                      f'本次将扫不到任何文件', file=sys.stderr)
         else:
             user_exts = user_spec
-    # 解析用户指定的 path 过滤(规则中的 paths 是规则匹配条件,不参与文件过滤,直接使用用户值)
     user_paths = None
     if args.path:
-        user_paths = [p.strip() for p in args.path.split(',') if p.strip()]
+        user_spec = [p.strip() for p in args.path.split(',') if p.strip()]
+        if rule_paths:
+            user_paths = [p for p in user_spec if p in rule_paths]   # 交集:只保留规则中有的路径
+        else:
+            user_paths = user_spec
     # 解析命令行排除路径（与规则 exclude_paths 合并）
     user_exclude = []
     if args.exclude:
@@ -327,11 +281,6 @@ def main():
             if not file_in_filter(rel, user_exts, user_paths):
                 continue
             files.append(rel)
-
-    if not files:
-        print('警告: 过滤后文件数为 0,本次扫描不会有任何命中', file=sys.stderr)
-        if args.path:
-            print(f'警告: -p 指定的 glob 未匹配到任何文件: {args.path}', file=sys.stderr)
 
     jobs = [(root, rel) for rel in files]
     workers = max(1, min(args.workers, len(files) or 1))
