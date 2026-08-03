@@ -25,7 +25,7 @@ MAX_MATCHES_PER_FINDING = 50          # 单条 finding 最多记录的命中行�
 LINE_PREVIEW = 200                    # 命中行内容截断长度
 BINARY_SNIFF = 8192                   # 前 N 字节含 NUL 视为二进制
 
-CONFIG = None  # 各进程共享的编译后规则(fork 继承)
+CONFIG = None  # 各进程共享的编译后规则
 
 
 def compile_rules(rules_path, min_severity_override=None):
@@ -86,6 +86,53 @@ def excluded(rel):
     # 兼容根级目录:'node_modules/x' 也要能命中 '**/node_modules/**'
     return any(fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch('/' + rel, pat)
                for pat in CONFIG['exclude'])
+
+
+def build_filter_from_rules():
+    """从已编译规则中提取所有 exts 和 paths，构建预过滤集合（用于快速过滤文件）"""
+    all_exts, all_paths = set(), []
+    for rule in CONFIG['rules']:
+        for g in rule['groups']:
+            if g['exts'] is not None:
+                all_exts.update(g['exts'])
+            if g['paths']:
+                all_paths.extend(g['paths'])
+    return all_exts, all_paths
+
+
+def file_in_filter(rel, user_exts, user_paths):
+    """判断文件相对路径是否在用户指定的 ext+path 过滤范围内"""
+    ext = ext_of(rel)
+    # ext 过滤: 用户指定了 exts 时，必须命中用户指定的 exts
+    if user_exts is not None:
+        if ext not in user_exts:
+            return False
+    # path 过滤: 用户指定了 paths 时，必须命中用户指定的 paths
+    if user_paths:
+        if not any(fnmatch.fnmatch(rel, p) or fnmatch.fnmatch('/' + rel, p) for p in user_paths):
+            return False
+    return True
+
+
+def fmt_size(path):
+    """获取文件的人类可读大小"""
+    try:
+        b = os.path.getsize(path)
+        if b >= 1024**3:
+            return f'{b / 1024**3:.1f}G'
+        if b >= 1024**2:
+            return f'{b / 1024**2:.1f}M'
+        if b >= 1024:
+            return f'{b / 1024:.1f}K'
+        return f'{b}B'
+    except OSError:
+        return 'unknown'
+
+
+def init_worker(config):
+    """Pool initializer: 在每个 worker 进程中设置 CONFIG (spawn 模式继承)"""
+    global CONFIG
+    CONFIG = config
 
 
 def scan_file(job):
@@ -179,6 +226,12 @@ def main():
     ap.add_argument('-r', '--rules', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rules.yaml'),
                     help='规则文件路径(默认脚本同目录 rules.yaml)')
     ap.add_argument('--min-severity', default=None, help='覆盖规则文件的 min_severity(high/medium/low)')
+    ap.add_argument('-e', '--ext', default=None,
+                    help='只扫描指定后缀的文件(逗号分隔,如 py,java,js),与规则取交集')
+    ap.add_argument('-p', '--path', default=None,
+                    help='只扫描路径匹配指定 glob 的文件(逗号分隔,如 **/src/**,**/core/**),与规则取交集')
+    ap.add_argument('-x', '--exclude', default=None,
+                    help='排除指定路径(glob,逗号分隔),可与规则中的 exclude_paths 叠加')
     ap.add_argument('-w', '--workers', type=int, default=cpu_count(), help='并行进程数(默认 CPU 核数)')
     args = ap.parse_args()
 
@@ -192,13 +245,40 @@ def main():
     global CONFIG
     CONFIG = compile_rules(args.rules, args.min_severity)
 
+    # 从规则中提取所有 exts 和 paths，用于与用户指定值取交集
+    rule_exts, rule_paths = build_filter_from_rules()
+
+    # 解析用户指定的 ext 和 path 过滤，再与规则取交集
+    user_exts = None
+    if args.ext:
+        user_spec = {e.strip().lstrip('.').lower() for e in args.ext.split(',') if e.strip()}
+        if rule_exts:
+            user_exts = user_spec & rule_exts   # 交集:只保留规则中有的后缀
+        else:
+            user_exts = user_spec
+    user_paths = None
+    if args.path:
+        user_spec = [p.strip() for p in args.path.split(',') if p.strip()]
+        if rule_paths:
+            user_paths = [p for p in user_spec if p in rule_paths]   # 交集:只保留规则中有的路径
+        else:
+            user_paths = user_spec
+    # 解析命令行排除路径（与规则 exclude_paths 合并）
+    user_exclude = []
+    if args.exclude:
+        user_exclude = [p.strip() for p in args.exclude.split(',') if p.strip()]
+    all_exclude = CONFIG['exclude'] + user_exclude
+
     # 收集文件列表
     files, n_excluded = [], 0
     for dirpath, _dirnames, filenames in os.walk(root):
         for fn in filenames:
             rel = os.path.relpath(os.path.join(dirpath, fn), root).replace(os.sep, '/')
-            if excluded(rel):
+            # 同时应用规则排除和命令行排除
+            if any(fnmatch.fnmatch(rel, p) or fnmatch.fnmatch('/' + rel, p) for p in all_exclude):
                 n_excluded += 1
+                continue
+            if not file_in_filter(rel, user_exts, user_paths):
                 continue
             files.append(rel)
 
@@ -210,7 +290,7 @@ def main():
         findings = scan_batch(jobs)
     else:
         chunks = [jobs[i::workers] for i in range(workers)]   # 轮询分片,负载均衡
-        with Pool(workers) as pool:                            # fork 模式继承 CONFIG
+        with Pool(workers, initializer=init_worker, initargs=(CONFIG,)) as pool:
             for res in pool.map(scan_batch, chunks):
                 findings.extend(res)
 
@@ -236,6 +316,7 @@ def main():
         json.dump(report, f, ensure_ascii=False, indent=2)
 
     print(f'扫描完成: {len(files)} 个文件(排除 {n_excluded}),命中 {len(findings)} 条 -> {args.output}')
+    print(f'输出文件: {fmt_size(args.output)}')
     for sev in ('high', 'medium', 'low'):
         if sev in summary:
             print(f'  {sev}: {summary[sev]}')
