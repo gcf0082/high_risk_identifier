@@ -32,11 +32,61 @@ description: 扫描指定目录,识别疑似高风险操作并输出审计报告
 ## 第 1 步:基线扫描
 
 ```bash
-python3 scripts/scan.py <目标目录> --min-severity medium -w 8
+python scripts/scan.py <目标目录> [--min-severity medium] [-e py,java,go] [-p "**/src/**"] [-x "**/test/**"] [-w 8]
 # 默认输出 <目标目录>/.risk_out/scan_result.json,改名/移动为 scan-base.json
 ```
 
-默认扫到 medium。medium 量大时可以先只看 high,但 JSON 里要留全量,审核按优先级来。
+**参数说明:**
+
+| 参数 | 说明 |
+|------|------|
+| `-e` / `--ext` | 只扫描指定后缀的文件(逗号分隔),与规则取交集。例如:`-e py,java,go` 只扫这三种后缀 |
+| `-p` / `--path` | 只扫描路径匹配指定 glob 的文件(逗号分隔),与规则取交集。例如:`-p "**/src/**,**/core/**"` |
+| `-x` / `--exclude` | 排除指定路径(glob,逗号分隔),可与 rules.yaml 中的 `exclude_paths` 叠加。例如:`-x "**/test/**,**/mock/**"` |
+| `--min-severity` | 覆盖规则文件的最低 severity,默认 high |
+| `-w N` | 并行 worker 数,默认 CPU 核数 |
+
+**典型用法:**
+```bash
+# 全量扫描,输出 medium+high
+python scripts/scan.py . -w 8
+
+# 只扫 Python/Java,排除测试目录
+python scripts/scan.py . -e py,java -x "**/test/**" -w 8
+
+# 只扫 Go,在 src/ 和 core/ 目录下,排除 test/
+python scripts/scan.py . -e go -p "**/src/**,**/core/**" -x "**/test/**" -w 8
+```
+
+默认扫到 high 级别。medium 量大时可以先只看 high,但 JSON 里要留全量,审核按优先级来。
+
+## 第 1.5 步:推断排除（降低误报）
+
+扫完后根据路径特征和文件内容，自动识别疑似 test/CI 构建/三方件路径，写入 `<目标目录>/.risk_out/exclude_paths.txt`（**自动生成，无需询问用户**）。生成后默认询问用户是否用其进一步排除后二扫。
+
+**推断依据：**
+
+| 类型 | 路径特征 | 内容特征 |
+|------|----------|----------|
+| 测试代码 | `**/test/**`、`**/__tests__/**`、`**/testing/**`、`**/fixtures/**` | `@test`、`pytest.mark`、`describe(`、`it(`、`unittest.TestCase` |
+| CI/构建 | `**/.github/workflows/**`、`**/ci/**`、`**/build/**`、`**/.gradle/**`、`**/target/**`、`**/Jenkinsfile*` | `github.*workflow`、`jenkinsfile`、`gitlab.*ci` |
+| 三方件 | `**/vendor/**`、`**/third_party/**`、`**/node_modules/**`、`**/dist/**` | `Copyright` + `All rights reserved`/`Proprietary`、`LGPL`/`GPL`/`BSD`/`MIT`/`Apache` License |
+| 其他噪声 | `**/mock/**`、`**/example/**`、`**/demo/**`、`**/.git/**` | — |
+
+**判断逻辑：** 路径命中上表任意一条，或文件内容（采样前 4KB）匹配内容特征正则，即视为疑似目标。
+
+**操作流程：**
+
+1. 首轮扫描完成，执行 `list_scan_results.py` 获取路径列表和总数
+2. 根据数量、分布、路径聚集特征**智能判断**是否生成 `exclude_paths.txt`（如：大量命中集中在 test/mock/build 等目录时生成；命中分散在全项目各处则跳过）；文件多或判断复杂时调用 agent 分析后再生成
+3. 若生成，`exclude_paths.txt` 每行一个 glob 路径（如 `**/test/**`），不含注释、空行或其他内容。显示总条数和全部路径
+4. 确认则二扫；否则跳过。也可手动指定排除路径（glob 格式，逗号分隔）
+5. 若判断不需要生成或 txt 为空，询问是否手动指定排除路径
+6. 使用 `--no-ask` 参数可跳过询问，直接用推断路径二扫
+
+**典型场景：**
+- 首轮 1201 条 high，识别出 300+ 条 test 命中 → 确认二扫后降到 800 条，审核量大幅减少
+- 已知项目结构较干净，可直接 `--no-ask` 跳过询问快速输出结果
 
 ## 第 2 步:审核确认(核心步骤)
 
@@ -75,7 +125,7 @@ python3 scripts/scan.py <目标目录> --min-severity medium -w 8
 然后跑第二轮并同样做审核:
 
 ```bash
-python3 scripts/scan.py <目标目录> -r <目标目录>/.risk_out/rules-custom.yaml -o <目标目录>/.risk_out/scan-custom.json --min-severity high -w 8
+python scripts/scan.py <目标目录> -r <目标目录>/.risk_out/rules-custom.yaml -o <目标目录>/.risk_out/scan-custom.json --min-severity high [-e py,java] [-x "**/test/**"] -w 8
 ```
 
 如果通读项目后确实没有值得补的特异模式,跳过这步,在报告里说明原因——不要为了补而补。
