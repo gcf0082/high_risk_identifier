@@ -2,3 +2,4 @@
 .claude/
 .risk_out/
 scan_result.json
+__pycache__/
