@@ -7,7 +7,7 @@ high_risk_identifier 扫描器
   - content 组:逐行匹配文件内容,输出 文件路径 + 行号 + 行内容
   - path 组   :匹配文件相对路径,输出只有文件路径(不含内容)
 用法:
-  python3 scan.py [目标目录] [-o 输出.json] [-r rules.yaml] [--min-severity high|medium|low] [-w N]
+  python3 scan.py [目标目录] [-o 输出.json] [-r rules.yaml] [--min-severity high|medium|low]
   不带参数时扫描当前目录,使用脚本同目录的默认规则,结果写入 ./.risk_out/scan_result.json
 """
 import argparse
@@ -16,7 +16,7 @@ import json
 import os
 import re
 import sys
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool
 
 import yaml
 
@@ -232,7 +232,6 @@ def main():
                     help='只扫描路径匹配指定 glob 的文件(逗号分隔,如 **/src/**,**/core/**),与规则取交集')
     ap.add_argument('-x', '--exclude', default=None,
                     help='排除指定路径(glob,逗号分隔),可与规则中的 exclude_paths 叠加')
-    ap.add_argument('-w', '--workers', type=int, default=cpu_count(), help='并行进程数(默认 CPU 核数)')
     args = ap.parse_args()
 
     root = os.path.abspath(args.target)
@@ -283,7 +282,7 @@ def main():
             files.append(rel)
 
     jobs = [(root, rel) for rel in files]
-    workers = max(1, min(args.workers, len(files) or 1))
+    workers = max(1, min(5, len(files) or 1))
 
     findings = []
     if workers == 1 or len(jobs) < 2:
