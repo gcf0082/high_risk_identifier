@@ -162,13 +162,71 @@ rules:
     severity: high
     match:
       - ext: [py]
-        content: ['\brequests\.', 'httpx\.', 'urlretrieve', 'urlopen']
+        content:
+          - '\brequests\.'
+          - 'httpx\.'
+          - 'urlretrieve'
+          - 'urlopen'
+          - 'urllib\.request'
+          - 'urllib2'
+          - 'http\.client'
+          - 'aiohttp'
+          - 'pycurl'
+          - 'websocket'
+          - 'websockets'
       - ext: [js, ts]
-        content: ['axios\.', '\bfetch\(']
+        content:
+          - 'axios\.'
+          - '\bfetch\('
+          - 'node-fetch'
+          - 'superagent'
+          - '\bgot\('
+          - '\bgot\.'
+          - 'undici'
+          - 'XMLHttpRequest'
+          - 'new\s+WebSocket'
+          - 'http\.request'
+          - 'https\.request'
+          - '\$\.ajax'
       - ext: [go]
-        content: ['\bhttp\.']
+        content:
+          - '\bhttp\.'
+          - 'http\.Get'
+          - 'http\.Post'
+          - 'http\.PostForm'
+          - 'http\.Do'
+          - 'net/http'
+          - 'fasthttp'
+          - 'grpc\.'
       - ext: [java]
-        content: ['HttpURLConnection\.connect', 'OkHttpClient\.newCall', 'RestTemplate\.postForObject']
+        content:
+          - 'HttpURLConnection\.connect'
+          - 'HttpsURLConnection'
+          - 'URL\.openConnection'
+          - 'java\.net\.http\.HttpClient'
+          - 'HttpRequest\.newBuilder'
+          - 'CloseableHttpClient'
+          - 'HttpClients\.custom'
+          - 'WebClient\.create'
+          - 'RestTemplate\.'
+          - 'Feign\.builder'
+          - 'Retrofit\.Builder'
+          - 'OkHttpClient\.newCall'
+      - ext: [rs]
+        content:
+          - 'reqwest::'
+          - 'hyper::'
+          - 'ureq::'
+          - 'awc::'
+      - ext: [c, cpp, cc, h, hpp]
+        content:
+          - 'curl_easy_'
+          - 'CURLOPT_'
+          - 'WinHttp'
+          - 'WinInet'
+          - 'QTcpSocket'
+          - 'QNetwork'
+          - 'QNetworkAccessManager'
 
   - id: ARCHIVE-EXTRACT
     name: 压缩解压
