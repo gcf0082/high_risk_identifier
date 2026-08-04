@@ -17,30 +17,17 @@ rules:
           - 'os\.exec[lv]'
           - 'subprocess'
           - 'shell\s*=\s*True'
-          - '\beval\('
-          - '\bexec\('
           - 'commands\.(getoutput|getstatusoutput|getstatus)'
           - '\bpopen\b'
           - 'invoke\.invoke'
-          - 'execfile'
           - 'exec_command'
       - ext: [js, ts]
         content:
           - 'child_process\.(exec|execSync|execFile|execFileSync|spawn|spawnSync|fork)'
-          - 'eval\('
-          - 'vm\.runIn'
       - ext: [java]
         content:
           - 'Runtime\.getRuntime\(\)\.exec'
-          - 'Runtime\.getRuntime\(\)\.load'
           - 'ProcessBuilder'
-          - 'ScriptEngine(Manager)?\b'
-          - 'javax\.script'
-          - 'Groovy(Shell|ClassLoader|ScriptEngine)\b'
-          - 'bsh\.Interpreter'
-          - 'JShell\b|jdk\.jshell'
-          - 'GroovyShell\.run'
-          - 'groovy\.lang\.Script'
           - 'DefaultExecutor'
           - 'CommandLineParser'
           - 'UNIXProcess\.forkAndExec'
@@ -49,7 +36,7 @@ rules:
           - 'ChannelExec\.setCommand'
           - 'com\.huawei\.baize\.security\.cmd\.SecureCmdExecutor'
       - ext: [go]
-        content: ['exec\.Command', 'syscall\.Exec', 'plugin\.Open', 'cmd\.Run\(', 'cmd\.Start\(', 'cmd\.Output\(', 'cmd\.CombinedOutput\(']
+        content: ['exec\.Command', 'syscall\.Exec', 'cmd\.Run\(', 'cmd\.Start\(', 'cmd\.Output\(', 'cmd\.CombinedOutput\(']
       - ext: [rs]
         content: ['std::process::Command', 'libc::system']
       - ext: [c, cpp, cc, h, hpp]
@@ -60,7 +47,6 @@ rules:
           - 'execv\('
           - 'execvpe\('
           - 'exec(l|v)[pel]\('
-          - 'dlopen\('
           - 'CreateProcess'
           - 'WinExec\('
           - 'ShellExecute'
@@ -94,7 +80,36 @@ rules:
       - ext: [js, ts, go, java, rs, c, cpp, cc, h, hpp]
         content:
           - '/bin/'
-         
+
+  - id: CODE-EXEC
+    name: 代码执行
+    severity: high
+    match:
+      - ext: [py]
+        content:
+          - '\beval\('
+          - '\bexec\('
+          - 'execfile'
+      - ext: [js, ts]
+        content:
+          - 'eval\('
+          - 'vm\.runIn'
+      - ext: [java]
+        content:
+          - 'Runtime\.getRuntime\(\)\.load'
+          - 'ScriptEngine(Manager)?\b'
+          - 'javax\.script'
+          - 'Groovy(Shell|ClassLoader|ScriptEngine)\b'
+          - 'bsh\.Interpreter'
+          - 'JShell\b|jdk\.jshell'
+          - 'GroovyShell\.run'
+          - 'groovy\.lang\.Script'
+      - ext: [go]
+        content:
+          - 'plugin\.Open'
+      - ext: [c, cpp, cc, h, hpp]
+        content:
+          - 'dlopen\('
 
   - id: FILE-OPERATION
     name: 文件操作
