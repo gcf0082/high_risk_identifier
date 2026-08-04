@@ -57,6 +57,7 @@ def compile_rules(config, rules_path, min_severity_override=None):
             groups.append({
                 'exts': {e.lower() for e in m['ext']} if m.get('ext') else None,
                 'paths': m.get('paths'),
+                'exclude_paths': m.get('exclude_paths', []),
                 'content': [re.compile(p, flags) for p in m.get('content', [])],
                 'path': [re.compile(p, flags) for p in m.get('path', [])],
             })
@@ -80,10 +81,12 @@ def ext_of(rel):
 
 
 def group_applies(rel, g):
-    """ext 过滤 AND paths glob 过滤"""
+    """ext 过滤 AND paths glob 过滤 AND exclude_paths 排除"""
     if g['exts'] is not None and ext_of(rel) not in g['exts']:
         return False
-    if g['paths'] and not any(fnmatch.fnmatch(rel, p) for p in g['paths']):
+    if g['paths'] and not any(fnmatch.fnmatch(rel, p) or fnmatch.fnmatch('/' + rel, p) for p in g['paths']):
+        return False
+    if g['exclude_paths'] and any(fnmatch.fnmatch(rel, p) or fnmatch.fnmatch('/' + rel, p) for p in g['exclude_paths']):
         return False
     return True
 
