@@ -158,7 +158,7 @@ rules:
         content: ['\bremove\(', '\bunlink\(', '\brmdir\(']
 
   - id: NETWORK-OPERATION
-    name: 网络操作
+    name: 网络发送请求
     severity: high
     match:
       - ext: [py]
