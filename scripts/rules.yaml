@@ -157,7 +157,7 @@ rules:
       - ext: [c, cpp, cc, h, hpp]
         content: ['\bremove\(', '\bunlink\(', '\brmdir\(']
 
-  - id: NETWORK-OPERATION
+  - id: NETWORK-SEND-REQUEST
     name: 网络发送请求
     severity: high
     match:
