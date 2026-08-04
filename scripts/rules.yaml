@@ -26,7 +26,6 @@ rules:
           - 'invoke\.invoke'
           - 'exec_command'
           - 'sh -c'
-          - 'bash -c'
       - ext: [js, ts]
         content:
           - 'child_process\.(exec|execSync|execFile|execFileSync|spawn|spawnSync|fork)'
@@ -36,7 +35,6 @@ rules:
           - 'sudo-prompt'
           - 'node-cmd'
           - 'sh -c'
-          - 'bash -c'
           - 'cmd /c'
           - 'powershell -Command'
       - ext: [java]
@@ -53,13 +51,11 @@ rules:
           - 'com\.huawei\.baize\.security\.cmd\.SecureCmdExecutor'
           - 'PsExec'
           - 'sh -c'
-          - 'bash -c'
           - 'cmd /c'
           - 'powershell -Command'
       - ext: [go]
         content:
           - 'exec\.Command'
-          - 'exec\.CommandContext'
           - 'syscall\.Exec'
           - 'syscall\.StartProcess'
           - 'syscall\.ForkExec'
@@ -69,7 +65,6 @@ rules:
           - 'cmd\.Output\('
           - 'cmd\.CombinedOutput\('
           - 'sh -c'
-          - 'bash -c'
       - ext: [rs]
         content:
           - 'std::process::Command'
@@ -88,15 +83,11 @@ rules:
           - 'exec(l|v)[pel]\('
           - 'posix_spawn'
           - 'CreateProcess'
-          - 'CreateProcessAsUser'
-          - 'CreateProcessWithLogon'
           - 'WinExec\('
           - 'ShellExecute'
-          - 'ShellExecuteEx'
           - '_spawn'
           - 'spawn'
           - 'sh -c'
-          - 'bash -c'
           - 'cmd /c'
           - 'powershell -Command'
           - 'iMAPGlobalUtils::runZipCmd'
@@ -127,7 +118,6 @@ rules:
           - '\bifconfig\b'
           - '\.sh\b'
           - 'sh -c'
-          - 'bash -c'
           - 'cmd /c'
           - 'powershell -Command'
       - ext: [js, ts, go, java, rs, c, cpp, cc, h, hpp]
@@ -154,9 +144,6 @@ rules:
           - 'eval\('
           - 'vm\.runIn'
           - 'new\s+Function'
-          - 'vm\.runInNewContext'
-          - 'vm\.runInThisContext'
-          - 'vm\.runInContext'
           - 'vm\.compileFunction'
       - ext: [java]
         content:
@@ -166,10 +153,8 @@ rules:
           - 'Groovy(Shell|ClassLoader|ScriptEngine)\b'
           - 'bsh\.Interpreter'
           - 'JShell\b|jdk\.jshell'
-          - 'GroovyShell\.run'
           - 'groovy\.lang\.Script'
           - 'System\.load'
-          - 'System\.loadLibrary'
           - 'NashornScriptEngine'
           - 'nashorn'
           - 'PythonInterpreter'
@@ -182,9 +167,7 @@ rules:
         content:
           - 'plugin\.Open'
           - 'goja\.'
-          - 'goja\.New'
           - 'otto\.'
-          - 'otto\.New'
           - 'lua\.NewState'
           - 'lua\.DoString'
           - 'lua\.DoFile'
@@ -193,7 +176,6 @@ rules:
           - 'interp\.Eval'
           - 'starlark\.ExecFile'
           - 'tengo\.'
-          - 'tengo\.Eval'
       - ext: [rs]
         content:
           - 'libloading::Library'
@@ -201,7 +183,6 @@ rules:
           - 'mlua::Lua'
           - 'rlua::Lua'
           - 'rhai::Engine'
-          - 'rhai::Engine::eval'
           - 'deno_core::JsRuntime'
           - 'v8::'
       - ext: [c, cpp, cc, h, hpp]
@@ -240,9 +221,6 @@ rules:
         content:
           - 'open\([^)]*["\x27][wax]'
           - 'shutil\.copy'
-          - 'shutil\.copyfile'
-          - 'shutil\.copy2'
-          - 'shutil\.copyfileobj'
           - 'shutil\.move'
           - 'write_text\('
           - 'write_bytes\('
@@ -254,9 +232,7 @@ rules:
           - 'fs\.writeFile'
           - 'fs\.appendFile'
           - 'createWriteStream'
-          - 'fs\.writeFileSync'
           - 'writeFileSync'
-          - 'fs\.appendFileSync'
           - 'appendFileSync'
           - 'fs\.promises\.writeFile'
           - 'fs\.promises\.appendFile'
@@ -264,9 +240,7 @@ rules:
           - 'fs\.writeSync'
           - 'fs\.writevSync'
           - 'outputFile'
-          - 'outputFileSync'
           - 'outputJson'
-          - 'outputJsonSync'
           - 'moveSync'
           - 'copySync'
       - ext: [java]
@@ -277,7 +251,6 @@ rules:
           - 'RandomAccessFile'
           - 'Files\.newOutputStream'
           - 'Files\.newBufferedWriter'
-          - 'Files\.writeString'
           - 'Files\.copy'
           - 'Files\.move'
           - 'FileChannel\.open'
@@ -333,7 +306,6 @@ rules:
     match:
       - ext: [py]
         content:
-          - 'os\.mkdir'
           - 'os\.makedirs'
           - 'os\.mkdtemp'
           - '\.mkdir\('
@@ -341,36 +313,29 @@ rules:
       - ext: [js, ts]
         content:
           - 'fs\.mkdir'
-          - 'fs\.mkdirSync'
           - 'fs\.mkdtemp'
           - 'fs\.promises\.mkdir'
           - 'ensureDir'
-          - 'ensureDirSync'
           - 'mkdirp'
-          - 'mkdirpSync'
       - ext: [java]
         content:
           - 'Files\.createDirectory'
           - 'Files\.createDirectories'
           - 'File\.mkdir'
-          - 'File\.mkdirs'
           - 'Files\.createTempDirectory'
       - ext: [go]
         content:
           - 'os\.Mkdir'
-          - 'os\.MkdirAll'
           - 'os\.MkdirTemp'
           - 'ioutil\.TempDir'
       - ext: [rs]
         content:
           - 'std::fs::create_dir'
-          - 'std::fs::create_dir_all'
           - 'tempfile::tempdir'
       - ext: [c, cpp, cc, h, hpp]
         content:
           - 'mkdir\('
           - 'CreateDirectory'
-          - 'CreateDirectoryEx'
           - 'std::filesystem::create_directory'
           - 'std::filesystem::create_directories'
           - 'QDir\(\)\.mkdir'
@@ -384,8 +349,6 @@ rules:
         content:
           - 'shutil\.rmtree'
           - 'os\.remove'
-          - 'os\.unlink'
-          - 'os\.rmdir'
           - 'os\.removedirs'
           - '\.unlink\('
           - '\.rmdir\('
@@ -403,9 +366,7 @@ rules:
           - 'del\('
       - ext: [java]
         content:
-          - 'Files\.delete'
           - 'Files\.deleteIfExists'
-          - 'FileUtils\.delete'
           - '\.delete\('
           - 'File\.deleteOnExit'
           - 'FileUtils\.deleteDirectory'
@@ -413,7 +374,6 @@ rules:
           - 'FileUtils\.cleanDirectory'
       - ext: [go]
         content:
-          - 'os\.RemoveAll'
           - 'os\.Remove'
       - ext: [rs]
         content:
@@ -427,10 +387,7 @@ rules:
           - '\brmdir\('
           - 'DeleteFile'
           - 'RemoveDirectory'
-          - 'std::filesystem::remove'
           - 'std::filesystem::remove_all'
-          - 'QFile::remove'
-          - 'QDir\(\)\.remove'
           - 'QDir\(\)\.removeRecursively'
 
   - id: NETWORK-SEND-REQUEST
@@ -440,11 +397,7 @@ rules:
       - ext: [py]
         content:
           - '\brequests\.'
-          - '\brequests\.Session'
-          - '\brequests\.get'
-          - '\brequests\.post'
           - 'httpx\.'
-          - 'httpx\.AsyncClient'
           - 'urlretrieve'
           - 'urlopen'
           - 'urllib\.request'
@@ -453,10 +406,8 @@ rules:
           - 'http\.client'
           - 'httplib'
           - 'aiohttp'
-          - 'aiohttp\.ClientSession'
           - 'pycurl'
           - 'websocket'
-          - 'websockets'
           - 'socketio'
           - 'paho\.mqtt'
           - 'tornado\.httpclient'
@@ -485,12 +436,6 @@ rules:
       - ext: [go]
         content:
           - '\bhttp\.'
-          - 'http\.Get'
-          - 'http\.Post'
-          - 'http\.PostForm'
-          - 'http\.Do'
-          - 'http\.Client'
-          - 'http\.NewRequest'
           - 'net/http'
           - 'fasthttp'
           - 'grpc\.'
@@ -538,7 +483,6 @@ rules:
           - 'WinInet'
           - 'QTcpSocket'
           - 'QNetwork'
-          - 'QNetworkAccessManager'
           - 'boost::asio'
           - 'Poco::Net'
           - 'CInternetSession'
