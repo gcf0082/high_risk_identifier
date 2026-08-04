@@ -489,7 +489,7 @@ rules:
 
   - id: SHELL-SCRIPT
     name: Shell脚本高危操作
-    severity: high
+    severity: medium
     match:
       - ext: [sh]
         content:
