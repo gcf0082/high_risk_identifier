@@ -1,0 +1,23 @@
+# =============================================================================
+# 扫描器全局配置
+# =============================================================================
+
+version: "4.0"
+
+severity_levels: [high, medium, low]
+min_severity: high
+
+case_sensitive: true
+
+exclude_paths:
+  - "**/node_modules/**"
+  - "**/.git/**"
+  - "**/vendor/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/target/**"
+  - "**/*.min.js"
+  - "**/*.lock"
+  - "**/.risk_out/**"
+  - "**/test/**"
+  - "**/tests/**"

@@ -4,26 +4,6 @@
 # 8 类结构：命令执行、文件操作、文件写、创建目录、删除文件、网络操作、压缩解压、网络监听
 # =============================================================================
 
-version: "4.0"
-
-severity_levels: [high, medium, low]
-min_severity: high
-
-case_sensitive: true
-
-exclude_paths:
-  - "**/node_modules/**"
-  - "**/.git/**"
-  - "**/vendor/**"
-  - "**/dist/**"
-  - "**/build/**"
-  - "**/target/**"
-  - "**/*.min.js"
-  - "**/*.lock"
-  - "**/.risk_out/**"
-  - "**/test/**"
-  - "**/tests/**"
-
 rules:
 
   - id: COMMAND-EXEC
@@ -43,7 +23,6 @@ rules:
           - '\bpopen\b'
           - 'invoke\.invoke'
           - 'execfile'
-          - 'input\('
           - 'exec_command'
       - ext: [js, ts]
         content:

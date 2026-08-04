@@ -7,8 +7,8 @@ high_risk_identifier 扫描器
   - content 组:逐行匹配文件内容,输出 文件路径 + 行号 + 行内容
   - path 组   :匹配文件相对路径,输出只有文件路径(不含内容)
 用法:
-  python3 scan.py [目标目录] [-o 输出.json] [-r rules.yaml] [--min-severity high|medium|low]
-  不带参数时扫描当前目录,使用脚本同目录的默认规则,结果写入 ./.risk_out/scan_result.json
+  python3 scan.py [目标目录] [-o 输出.json] [-c config.yaml] [-r rules.yaml] [--min-severity high|medium|low]
+  不带参数时扫描当前目录,使用脚本同目录的默认配置和规则,结果写入 ./.risk_out/scan_result.json
 """
 import argparse
 import fnmatch
@@ -28,18 +28,24 @@ BINARY_SNIFF = 8192                   # 前 N 字节含 NUL 视为二进制
 CONFIG = None  # 各进程共享的编译后规则
 
 
-def compile_rules(rules_path, min_severity_override=None):
-    with open(rules_path, encoding='utf-8') as f:
+def load_config(config_path):
+    with open(config_path, encoding='utf-8') as f:
         cfg = yaml.safe_load(f)
-    levels = cfg.get('severity_levels', ['high', 'medium', 'low'])
-    min_sev = min_severity_override or cfg.get('min_severity', 'high')
+    return cfg or {}
+
+
+def compile_rules(config, rules_path, min_severity_override=None):
+    with open(rules_path, encoding='utf-8') as f:
+        rules_doc = yaml.safe_load(f)
+    levels = config.get('severity_levels', ['high', 'medium', 'low'])
+    min_sev = min_severity_override or config.get('min_severity', 'high')
     if min_sev not in levels:
         raise ValueError(f'未知级别: {min_sev},可选 {levels}')
     min_idx = levels.index(min_sev)
-    global_cs = cfg.get('case_sensitive', True)
+    global_cs = config.get('case_sensitive', True)
 
     compiled_rules = []
-    for rule in cfg.get('rules', []):
+    for rule in (rules_doc or {}).get('rules', []):
         sev = rule.get('severity', 'low')
         if sev not in levels:
             raise ValueError(f"规则 {rule.get('id')} 的 severity 非法: {sev}")
@@ -61,9 +67,9 @@ def compile_rules(rules_path, min_severity_override=None):
             'groups': groups,
         })
     return {
-        'version': cfg.get('version'),
+        'version': config.get('version'),
         'min_severity': min_sev,
-        'exclude': cfg.get('exclude_paths', []),
+        'exclude': config.get('exclude_paths', []),
         'rules': compiled_rules,
     }
 
@@ -219,13 +225,17 @@ def scan_batch(jobs):
 
 
 def main():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
     ap = argparse.ArgumentParser(description='按 rules.yaml 扫描目标目录的高风险操作')
     ap.add_argument('target', nargs='?', default='.', help='被扫描的目标目录(默认当前目录)')
     ap.add_argument('-o', '--output', default=None,
                     help='结果 JSON 输出路径(默认 <目标目录>/.risk_out/scan_result.json)')
-    ap.add_argument('-r', '--rules', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rules.yaml'),
+    ap.add_argument('-c', '--config', default=os.path.join(script_dir, 'config.yaml'),
+                    help='配置文件路径(默认脚本同目录 config.yaml)')
+    ap.add_argument('-r', '--rules', default=os.path.join(script_dir, 'rules.yaml'),
                     help='规则文件路径(默认脚本同目录 rules.yaml)')
-    ap.add_argument('--min-severity', default=None, help='覆盖规则文件的 min_severity(high/medium/low)')
+    ap.add_argument('--min-severity', default=None, help='覆盖配置文件的 min_severity(high/medium/low)')
     ap.add_argument('-e', '--ext', default=None,
                     help='只扫描指定后缀的文件(逗号分隔,如 py,java,js),与规则取交集')
     ap.add_argument('-p', '--path', default=None,
@@ -242,7 +252,8 @@ def main():
         args.output = os.path.join(root, '.risk_out', 'scan_result.json')
 
     global CONFIG
-    CONFIG = compile_rules(args.rules, args.min_severity)
+    cfg = load_config(args.config)
+    CONFIG = compile_rules(cfg, args.rules, args.min_severity)
 
     # 从规则中提取所有 exts 和 paths，用于与用户指定值取交集
     rule_exts, rule_paths = build_filter_from_rules()
