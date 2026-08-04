@@ -26,7 +26,7 @@ exclude_paths:
 
 rules:
 
-  - id: HR-COMMAND-EXEC
+  - id: COMMAND-EXEC
     name: 命令执行
     severity: high
     match:
@@ -117,7 +117,7 @@ rules:
           - '/bin/'
          
 
-  - id: HR-FILE-OPERATION
+  - id: FILE-OPERATION
     name: 文件操作
     severity: high
     match:
@@ -129,7 +129,7 @@ rules:
           - 'fs\.chmod'
           - 'setExecutable|setWritable|setPosixFilePermissions'
 
-  - id: HR-FILE-WRITE
+  - id: FILE-WRITE
     name: 文件写
     severity: high
     match:
@@ -146,7 +146,7 @@ rules:
       - ext: [c, cpp, cc, h, hpp]
         content: ['fopen\([^)]*["\x27][wa]\+?["\x27]']
 
-  - id: HR-DIR-CREATE
+  - id: DIR-CREATE
     name: 创建目录
     severity: high
     match:
@@ -161,7 +161,7 @@ rules:
       - ext: [c, cpp, cc, h, hpp]
         content: ['mkdir\(']
 
-  - id: HR-FILE-DELETE
+  - id: FILE-DELETE
     name: 删除文件
     severity: high
     match:
@@ -178,7 +178,7 @@ rules:
       - ext: [c, cpp, cc, h, hpp]
         content: ['\bremove\(', '\bunlink\(', '\brmdir\(']
 
-  - id: HR-NETWORK-OPERATION
+  - id: NETWORK-OPERATION
     name: 网络操作
     severity: high
     match:
@@ -191,7 +191,7 @@ rules:
       - ext: [java]
         content: ['HttpURLConnection\.connect', 'OkHttpClient\.newCall', 'RestTemplate\.postForObject']
 
-  - id: HR-ARCHIVE-EXTRACT
+  - id: ARCHIVE-EXTRACT
     name: 压缩解压
     severity: high
     match:
@@ -204,7 +204,7 @@ rules:
           - 'extractall\('
           - '\btarfile\b|ZipFile|ZipInputStream|ZipArchive'
 
-  - id: HR-NETWORK-LISTEN
+  - id: NETWORK-LISTEN
     name: 网络监听
     severity: high
     match:
@@ -219,7 +219,7 @@ rules:
       - ext: [c, cpp, cc, h, hpp]
         content: ['\bsocket\(', '\blisten\(', '\baccept\(']
 
-  - id: HR-SHELL-SCRIPT
+  - id: SHELL-SCRIPT
     name: Shell脚本高危操作
     severity: high
     match:
