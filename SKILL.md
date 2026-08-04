@@ -24,3 +24,7 @@ python scripts/scan.py <目标目录>
 - `path`：匹配文件相对路径的正则列表。
 - `paths`：glob 路径白名单，文件路径必须命中其中之一该组才生效。
 - `exclude_paths`：glob 路径黑名单，文件路径命中任一该组即不生效。
+
+## 按文件汇总风险
+
+扫描结束后会自动在结果同目录生成 `file_risks.json`，无需额外调用。输出为 `文件路径 -> 命中列表` 的映射，每个文件内命中扁平排列、按行号升序（path 类命中无行号，排在末尾），每条含 `line`、`text`、`rule_name`、`severity`。

@@ -9,6 +9,7 @@ high_risk_identifier 扫描器
 用法:
   python3 scan.py [目标目录] [-o 输出.json] [-c config.yaml] [-r rules.yaml] [--min-severity high|medium|low]
   不带参数时扫描当前目录,使用脚本同目录的默认配置和规则,结果写入 ./.risk_out/scan_result.json
+  扫描结束后在结果同目录自动生成 file_risks.json(文件路径 -> 命中列表,按行号升序)
 """
 import argparse
 import fnmatch
@@ -49,18 +50,24 @@ def compile_rules(config, rules_path, min_severity_override=None):
         sev = rule.get('severity', 'low')
         if sev not in levels:
             raise ValueError(f"规则 {rule.get('id')} 的 severity 非法: {sev}")
-        if levels.index(sev) > min_idx:      # 低于 min_severity 的规则不启用
-            continue
         flags = 0 if rule.get('case_sensitive', global_cs) else re.IGNORECASE
         groups = []
         for m in rule.get('match', []):
+            gsev = m.get('severity', sev)    # 组级 severity 覆盖规则级
+            if gsev not in levels:
+                raise ValueError(f"规则 {rule.get('id')} 的 match 组 severity 非法: {gsev}")
+            if levels.index(gsev) > min_idx:  # 低于 min_severity 的组不启用
+                continue
             groups.append({
                 'exts': {e.lower() for e in m['ext']} if m.get('ext') else None,
                 'paths': m.get('paths'),
                 'exclude_paths': m.get('exclude_paths', []),
                 'content': [re.compile(p, flags) for p in m.get('content', [])],
                 'path': [re.compile(p, flags) for p in m.get('path', [])],
+                'severity': gsev,
             })
+        if not groups:                       # 所有组都被过滤掉的规则不启用
+            continue
         compiled_rules.append({
             'id': rule['id'],
             'name': rule.get('name', ''),
@@ -150,7 +157,7 @@ def scan_file(job):
     findings = []
 
     # --- path 组:只匹配相对路径,输出不含内容 ---
-    path_hits = {}      # rule_id -> {'rule': rule, 'patterns': set()}
+    path_hits = {}      # (rule_id, severity) -> {'rule': rule, 'patterns': set()}
     content_groups = []  # [(rule, group)]
     for rule in CONFIG['rules']:
         for g in rule['groups']:
@@ -158,17 +165,17 @@ def scan_file(job):
                 continue
             for p in g['path']:
                 if p.search(rel):
-                    hit = path_hits.setdefault(rule['id'], {'rule': rule, 'patterns': set()})
+                    hit = path_hits.setdefault((rule['id'], g['severity']), {'rule': rule, 'patterns': set()})
                     hit['patterns'].add(p.pattern)
             if g['content']:
                 content_groups.append((rule, g))
 
-    for rid, info in path_hits.items():
+    for (rid, gsev), info in path_hits.items():
         r = info['rule']
         findings.append({
             'rule_id': rid,
             'rule_name': r['name'],
-            'severity': r['severity'],
+            'severity': gsev,
             'match_type': 'path',
             'file': rel,
             'matches': [{'pattern': p} for p in sorted(info['patterns'])],
@@ -193,16 +200,16 @@ def scan_file(job):
             lines = lines[1:]
             line_offset = 2
 
-        acc = {}   # rule_id -> {'rule': rule, 'matches': {(pattern, lineno): text}}
+        acc = {}   # (rule_id, severity) -> {'rule': rule, 'matches': {(pattern, lineno): text}}
         for lineno, line in enumerate(lines, line_offset):
             for rule, g in content_groups:
                 for p in g['content']:
                     m = p.search(line)
                     if m:
-                        entry = acc.setdefault(rule['id'], {'rule': rule, 'matches': {}})
+                        entry = acc.setdefault((rule['id'], g['severity']), {'rule': rule, 'matches': {}})
                         entry['matches'].setdefault((p.pattern, lineno), line.strip()[:LINE_PREVIEW])
 
-        for rid, info in acc.items():
+        for (rid, gsev), info in acc.items():
             r = info['rule']
             matches = [
                 {'line': lineno, 'pattern': pat, 'text': txt}
@@ -211,7 +218,7 @@ def scan_file(job):
             findings.append({
                 'rule_id': rid,
                 'rule_name': r['name'],
-                'severity': r['severity'],
+                'severity': gsev,
                 'match_type': 'content',
                 'file': rel,
                 'matches': matches,
@@ -225,6 +232,27 @@ def scan_batch(jobs):
     for j in jobs:
         out.extend(scan_file(j))
     return out
+
+
+def build_file_risks(findings):
+    """findings -> {file: [命中条目]},组内按行号升序,path 命中(无行号)排在末尾"""
+    files = {}
+    for f_ in findings:
+        entry_base = {'rule_name': f_['rule_name'], 'severity': f_['severity']}
+        if f_['match_type'] == 'path':
+            # path 命中没有行号和行内容,一条 finding 记一条
+            files.setdefault(f_['file'], []).append({'line': None, **entry_base})
+            continue
+        for m in f_['matches']:
+            files.setdefault(f_['file'], []).append({
+                'line': m['line'],
+                'text': m['text'],
+                **entry_base,
+            })
+
+    for entries in files.values():
+        entries.sort(key=lambda e: (e['line'] is None, e['line'] or 0))
+    return {fp: files[fp] for fp in sorted(files)}
 
 
 def main():
@@ -327,6 +355,10 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     with open(args.output, 'w', encoding='utf-8') as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
+
+    risks_path = os.path.join(os.path.dirname(os.path.abspath(args.output)), 'file_risks.json')
+    with open(risks_path, 'w', encoding='utf-8') as f:
+        json.dump(build_file_risks(findings), f, ensure_ascii=False, indent=2)
 
     print(f'扫描完成: {len(files)} 个文件(排除 {n_excluded}),命中 {len(findings)} 条 -> {args.output}')
     print(f'输出文件: {fmt_size(args.output)}')
