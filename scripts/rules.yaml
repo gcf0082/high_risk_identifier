@@ -332,32 +332,106 @@ rules:
     severity: high
     match:
       - ext: [py]
-        content: ['os\.mkdir', 'os\.makedirs', 'os\.mkdtemp']
+        content:
+          - 'os\.mkdir'
+          - 'os\.makedirs'
+          - 'os\.mkdtemp'
+          - '\.mkdir\('
+          - 'tempfile\.mkdtemp'
       - ext: [js, ts]
-        content: ['fs\.mkdir', 'fs\.mkdirSync', 'fs\.mkdtemp']
+        content:
+          - 'fs\.mkdir'
+          - 'fs\.mkdirSync'
+          - 'fs\.mkdtemp'
+          - 'fs\.promises\.mkdir'
+          - 'ensureDir'
+          - 'ensureDirSync'
+          - 'mkdirp'
+          - 'mkdirpSync'
       - ext: [java]
-        content: ['Files\.createDirectory', 'Files\.createDirectories', 'File\.mkdir']
+        content:
+          - 'Files\.createDirectory'
+          - 'Files\.createDirectories'
+          - 'File\.mkdir'
+          - 'File\.mkdirs'
+          - 'Files\.createTempDirectory'
       - ext: [go]
-        content: ['os\.Mkdir', 'os\.MkdirAll']
+        content:
+          - 'os\.Mkdir'
+          - 'os\.MkdirAll'
+          - 'os\.MkdirTemp'
+          - 'ioutil\.TempDir'
+      - ext: [rs]
+        content:
+          - 'std::fs::create_dir'
+          - 'std::fs::create_dir_all'
+          - 'tempfile::tempdir'
       - ext: [c, cpp, cc, h, hpp]
-        content: ['mkdir\(']
+        content:
+          - 'mkdir\('
+          - 'CreateDirectory'
+          - 'CreateDirectoryEx'
+          - 'std::filesystem::create_directory'
+          - 'std::filesystem::create_directories'
+          - 'QDir\(\)\.mkdir'
+          - 'QDir\(\)\.mkpath'
 
   - id: FILE-DELETE
     name: 删除文件
     severity: high
     match:
       - ext: [py]
-        content: ['shutil\.rmtree', 'os\.remove', 'os\.unlink', 'os\.rmdir', 'os\.removedirs', '\.unlink\(']
+        content:
+          - 'shutil\.rmtree'
+          - 'os\.remove'
+          - 'os\.unlink'
+          - 'os\.rmdir'
+          - 'os\.removedirs'
+          - '\.unlink\('
+          - '\.rmdir\('
       - ext: [js, ts]
-        content: ['fs\.rmSync', 'fs\.unlinkSync', 'fs\.rm\b\(', 'fs\.rmdirSync', 'rimraf']
+        content:
+          - 'fs\.rmSync'
+          - 'fs\.unlinkSync'
+          - 'fs\.rm\b\('
+          - 'fs\.rmdirSync'
+          - 'rimraf'
+          - 'fs\.promises\.unlink'
+          - 'fs\.promises\.rmdir'
+          - 'fs\.promises\.rm'
+          - 'removeSync'
+          - 'del\('
       - ext: [java]
-        content: ['Files\.delete', 'Files\.deleteIfExists', 'FileUtils\.delete']
+        content:
+          - 'Files\.delete'
+          - 'Files\.deleteIfExists'
+          - 'FileUtils\.delete'
+          - '\.delete\('
+          - 'File\.deleteOnExit'
+          - 'FileUtils\.deleteDirectory'
+          - 'FileUtils\.deleteQuietly'
+          - 'FileUtils\.cleanDirectory'
       - ext: [go]
-        content: ['os\.RemoveAll', 'os\.Remove']
+        content:
+          - 'os\.RemoveAll'
+          - 'os\.Remove'
       - ext: [rs]
-        content: ['std::fs::remove_dir_all', 'std::fs::remove_file', 'std::fs::remove_dir']
+        content:
+          - 'std::fs::remove_dir_all'
+          - 'std::fs::remove_file'
+          - 'std::fs::remove_dir'
       - ext: [c, cpp, cc, h, hpp]
-        content: ['\bremove\(', '\bunlink\(', '\brmdir\(']
+        content:
+          - '\bremove\('
+          - '\bunlink\('
+          - '\brmdir\('
+          - 'DeleteFile'
+          - 'RemoveDirectory'
+          - 'std::filesystem::remove'
+          - 'std::filesystem::remove_all'
+          - 'QFile::remove'
+          - 'QDir\(\)\.remove'
+          - 'QDir\(\)\.removeRecursively'
 
   - id: NETWORK-SEND-REQUEST
     name: 网络发送请求
